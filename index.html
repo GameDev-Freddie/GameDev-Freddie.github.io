@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tower Defense Game</title>
+    <!-- <meta http-equiv="refresh" content="1"> -->
+    <style>
+        body {
+            background-color: lightslategray;
+            color: #3b4961;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #gameCanvas {
+            background-color: #212837;
+            border: 10px solid #3b4961;
+            border-radius: 15px;
+        }
+
+        #buyButtons {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start; /* Update align-items to flex-start */
+        align-items: left; /* Update align-items to flex-start */
+        margin-top: 20px;
+    }
+
+        .buyButton {
+            margin: 10px 0; /* Update margin to provide space between buttons */
+            padding: 10px;
+            background-color: #e0e0e0;
+            border: none;
+            cursor: pointer;
+        }
+
+        .buyButton:hover {
+            background-color: #d0d0d0;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="buyButtons">
+        <button class="buyButton" id="grayTowerButton">Buy Gray Tower (5 coins)</button>
+        <button class="buyButton" id="blackTowerButton">Buy Black Tower (10 coins)</button>
+    </div>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+    <script>
+        const GAME_WIDTH = 600;
+        const GAME_HEIGHT = 600;
+        const ENEMY_RADIUS = 10;
+        const TOWER_RADIUS = 15;
+
+        let ctx;
+        let coins = 555;
+        let health = 10;
+        let gameOver = false;
+        let enemies = [];
+        let towers = [];
+        let bullets = [];
+        let currentWave = 1;
+        let isGrayTowerSelected = false;
+        let isBlackTowerSelected = false;
+        let nextwave = 3;
+        class Enemy {
+            constructor(y, radius) {
+                this.x = 0;
+                this.y = y;
+                this.radius = radius;
+                this.speed = 1;
+            }
+            update() {
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                this.x += this.speed;
+            }
+        }
+
+        class Tower {
+            constructor(x, y, radius) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.shootTimer = 0;
+                this.shootInterval = 1000;
+                this.attackRange = 120;
+            }
+
+            update() {
+                ctx.fillStyle = 'gray';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                this.shootTimer += 16;
+                
+                if (this.shootTimer >= this.shootInterval) {
+                    const enemy = getClosestEnemy(this.x, this.y);
+                    const dx = enemy.x - this.x;
+                    const dy = enemy.y - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (enemy && distance < this.attackRange) {
+                        bullets.push(new Bullet(this.x, this.y, enemy));
+                    }
+                    this.shootTimer = 0;
+                }
+            }
+        }
+
+        class BlackTower extends Tower {
+            constructor(x, y, radius) {
+                super(x, y, radius);
+                this.shootInterval = 5000;
+            }
+
+            update() {
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class Bullet {
+    constructor(x, y, target) {
+        this.x = x;
+        this.y = y
+        this.target = target;
+        this.speed = 3;
+        this.radius = 3;
+    }
+
+    update() {
+        ctx.fillStyle = 'brown';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        const dx = this.target.x - this.x;
+        const dy = this.target.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const velocityX = (dx / distance) * this.speed;
+        const velocityY = (dy / distance) * this.speed;
+        const enemyIndex = enemies.indexOf(this.target);
+        if (enemyIndex !== -1) {
+            this.x += velocityX;
+            this.y += velocityY;
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                const dx = enemy.x - this.x;
+                const dy = enemy.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < enemy.radius + this.radius) {
+                    enemies.splice(i, 1);
+                    bullets.splice(bullets.indexOf(this), 1);
+                    coins++;
+                }
+            }
+        } else {
+            bullets.splice(bullets.indexOf(this), 1);
+        }
+    }
+}
+
+        function getClosestEnemy(x, y) {
+            let closestEnemy = null;
+            let closestDistance = Infinity;
+            for (const enemy of enemies) {
+                const dx = enemy.x - x;
+                const dy = enemy.y - y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < closestDistance) {
+                    closestEnemy = enemy;
+                    closestDistance = distance;
+                }
+            }
+            return closestEnemy;
+        }
+
+        function spawnEnemy(y, radius)
+            {enemies.push(new Enemy(y, radius));}
+        function spawnTower(x, y, radius)
+            {towers.push(new Tower(x, y, radius));}
+        function spawnBlackTower(x, y, radius)
+            {towers.push(new BlackTower(x, y, radius));}
+        function spawnBullet(x, y, target)
+            {bullets.push(new Bullet(x, y, target));}
+
+        function gameLoop() {
+            if (isGrayTowerSelected) {
+    document.body.style.cursor = 'crosshair'; // Set cursor to 'pointer'
+  } else {
+    document.body.style.cursor = 'default'; // Set cursor to 'default'
+  }
+            ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            ctx.fillStyle = '#3b4961';
+            ctx.fillRect(0,0,GAME_WIDTH, 35);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'white';
+            ctx.font = '23px Comic Sans MS';
+            ctx.fillText((nextwave > 0 && nextwave != 3 ? 'Next wave ' + nextwave: 'Wave ' + currentWave), GAME_WIDTH/2,22);
+            ctx.fillText('Coins ' + coins, GAME_WIDTH/4.5,22);
+            ctx.fillText('Health ' + health, GAME_WIDTH/1.25,22);
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '48px Comic Sans MS';
+                ctx.fillText('Game Over', GAME_WIDTH/2, GAME_HEIGHT / 2);
+                return;
+            }
+            if(nextwave > 0)
+            {
+                nextwave -= 0.01;
+                if(nextwave <= 0)
+                    startNewWave();
+            }
+            if (enemies.length === 0 && nextwave <= 0) {
+                nextwave = 3;
+            }
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                enemies[i].update();
+                if (enemies[i].x >= GAME_WIDTH) {
+                    enemies.splice(i, 1);
+                    health--;
+                    gameOver = health <= 0;
+                }
+            }
+            for (const tower of towers) 
+                tower.update();
+            for (const bullet of bullets) 
+                bullet.update();
+
+            requestAnimationFrame(gameLoop);
+        }
+        async function startNewWave() {
+            currentWave++;
+            spawnEnemies(currentWave);
+            }
+            async function spawnEnemies(amount) {
+            for (let i = 1; i < amount; i++) {
+                spawnEnemy(Math.floor(Math.random() * GAME_HEIGHT), ENEMY_RADIUS);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500));
+            }
+            }
+
+        function onCanvasClick(event) {
+            const rect = event.target.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            if (isGrayTowerSelected)
+                spawnTower(mouseX, mouseY, TOWER_RADIUS);
+            if (isBlackTowerSelected)
+            spawnBlackTower(mouseX, mouseY, TOWER_RADIUS);
+            isGrayTowerSelected = false;
+            isBlackTowerSelected = false;
+        }
+
+        function onGrayTowerButtonClick() {
+            if (coins >= 5) {
+                coins -= 5;
+                isGrayTowerSelected = true;
+                isBlackTowerSelected = false;
+            }
+        }
+
+        function onBlackTowerButtonClick() {
+            if (coins >= 10) {
+                coins -= 10;
+                isBlackTowerSelected = true;
+                isGrayTowerSelected = false;
+            }
+        }
+        function init() {
+            const canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            canvas.addEventListener('click', onCanvasClick);
+            const grayTowerButton = document.getElementById('grayTowerButton');
+            grayTowerButton.addEventListener('click', onGrayTowerButtonClick);
+            const blackTowerButton = document.getElementById('blackTowerButton');
+            blackTowerButton.addEventListener('click', onBlackTowerButtonClick);
+            gameLoop();
+        }
+        init();
+</script></body>
